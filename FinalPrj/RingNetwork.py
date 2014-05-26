@@ -23,7 +23,7 @@ class Calculations(object):
 
     # transmissionDelay() simply calculates transmission delay by dividing packet size to data rate.
     def transmissionDelay(self, packetSize, dataRate):
-	return float(packetSize)/dataRate
+	return round((float(packetSize)/dataRate),3)
     
     # shortestPath() calculates the shortest path between source node and target node.
     # This function returns a string "left" or "right" in order to indicate which way
@@ -57,7 +57,7 @@ class Network(object):
         self.nodeList = [None]
         self.nodeNum = input('Enter the number of nodes in the network: ')
         self.defaultDataRate = input('Enter the data rate of each link (Mb/s): ')
-        self.propogationDelay = input('Enter the propogation delay of each link (microsec): ')
+        self.propogationDelay = (input('Enter the propogation delay of each link (microsec): '))/1000.0 #Convert to millisecond.
 
         # Get the bottleneck properties.
         self.bottleNecks = [None] #[(link x,dataRate x),(link y,dataRate y ),...]
@@ -104,7 +104,7 @@ class Network(object):
         self.packetList = [None]
 	for flow in self.flowProperties:
 	    if flow != None:
-		packetSize = float(flow[2])/flow[3] # (message size)/(packet number)
+		packetSize = round((float(flow[2])/flow[3]),3) # (message size)/(packet number)
 		rot = self.calculations.shortestPath(nodeList=self.nodeList, sourceNode=flow[0], targetNode=flow[1])
 		self.packetList.append([Packet(id=i, rotation=rot, size=packetSize, currentNode=flow[0], targetNode=flow[1], flowId=currentFlowId) for i in xrange(1,flow[3]+1)])
                 # currentFlowId below here used as an index to add None front of each flow to maintain lists better. 
@@ -147,4 +147,26 @@ class Network(object):
 	    else:
 	        continue
 
-    def simulate(self)
+    def simulate(self):
+	while(len(self.FEL != 0)):
+	    self.FEL = sorted(self.FEL, key=lambda k: (k["Time"],k["FlowID"])) # Sorts the FEL by Time then FlowID in ascending order.
+
+	    currentEvent = self.FEL[0] 
+	   
+	    # ARRIVAL SCENARIO
+	    if currentEvent["Event"] == "Arrival":
+	        if self.nodeList[currentEvent["From/To"]].isBusy == False:
+	            self.nodeList[currentEvent["From/To"]].isBusy = True # Set isBusy flag of current node True.
+	            currentEvent.["Event"] = "Departure"
+		    currentEvent.["Time"] = currentEvent["Time"] + dummyFunc(self.packetList[currentEvent["FlowID"]][currentEvent["PacketID"]])
+		    self.FEL[0] = currentEvent
+                else:
+	            self.nodeList[currentEvent["From/To"]].queue.append(self.packetList[currentEvent["FlowID"]][currentEvent["PacketID"]])
+
+	    
+	    # DEPARTURE SCENARIO
+	    if currentEvent["Event"] == "Departure":
+	        if len(self.nodeList[currentEvent["From/To"]].queue) > 0:
+	            self.nodeList[currentEvent["From/To"]].queue.remove(self.packetList[currentEven["FlowID"]][currentEven["PacketID"]])
+                    currentEvent["Event"] = "Arrival"
+		    currentEvent["Time"] = currentEvent["Time"] + self.propogationDelay
