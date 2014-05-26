@@ -47,8 +47,8 @@ class Calculations(object):
 	    else:
 	        return "left"
 
-    # The method below takes a packet as an argument and then returns the node
-    # that the packet should go next.
+    # The method below takes nodeList and packet as an argument and then returns the node
+    # that the current packet should go next.
     def findNextNode(self, nodeList, packet):
         if packet.rotation == "right":
 	    if nodeList[(packet.currentNode+1)%len(nodeList)] == None:
@@ -62,7 +62,9 @@ class Calculations(object):
 		return nodeList[(packet.currentNode-1)%len(nodeList)].id
 
 
-    transmissionDelayByRoute = lambda packet, nodeList: self.transmissionDelay(packet.size, nodeList[packet.currentNode].rightLinkDataRate) if packet.rotation == "right" else (self.transmissionDelay(packet.size, nodeList[packet.currentNode].leftLinkDataRate)) 
+    # This method calculates the transmission delay in a smarter way. Since there are two exit point
+    # on every node, transmission delay should be calculated with using the correct data link. The method
+    # takes packet and nodeList as argument, then returns transmission delay according to route of packet.
     def transmissionDelayByRoute2(self, packet, nodeList):
         if packet.rotation == "right":
 	    return self.transmissionDelay(packet.size, nodeList[packet.currentNode].rightLinkDataRate)
@@ -114,7 +116,7 @@ class Network(object):
             self.nodeList.append(Node())
             self.nodeList[i].id = i
             self.nodeList[i].rightLinkDataRate = self.linkList[i]
-	    # This part exist for avoidance of assigning None to leftLinkDataRate of the first Node.
+	    # This part exist for user to avoid to assign None to leftLinkDataRate of the first Node.
 	    if self.linkList[i-1] != None:
 	        self.nodeList[i].leftLinkDataRate = self.linkList[i-1]
 	    else:
@@ -135,7 +137,6 @@ class Network(object):
 	    else:
 	        continue
 
-	# THIS PART CONTAINS SOME USEFUL FUNCTIONS THAT USED WHEN INITIALIZING FEL!!!
 	
 	# Initialization of the Future Event List    
 	self.FEL = []	
@@ -160,7 +161,7 @@ class Network(object):
 
     def simulate(self):
 	while(len(self.FEL) != 0):
-	    time.sleep(2)
+	    time.sleep(0.1)
 	    self.FEL = sorted(self.FEL, key=lambda k: (k["Time"],k["FlowID"])) # Sorts the FEL by Time then FlowID in ascending order.
 
 	    currentEvent = self.FEL[0] 
@@ -193,7 +194,6 @@ class Network(object):
 		self.packetList[currentEvent["FlowID"]][currentEvent["PacketID"]].currentNode = currentEvent["From/To"]
                 self.FEL.append(currentEvent)
 	        if len(self.nodeList[temporaryNodeIndex].queue) > 0:
-	            # self.nodeList[currentEvent["From/To"]].queue.remove(self.packetList[currentEvent["FlowID"]][currentEvent["PacketID"]])
 		    nextPacketInTheQueue = self.nodeList[temporaryNodeIndex].queue[0]
 		    del self.nodeList[temporaryNodeIndex].queue[0]
                     eventTemplate = {
