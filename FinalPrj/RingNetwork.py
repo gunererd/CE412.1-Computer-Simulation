@@ -1,3 +1,4 @@
+import time
 class Packet(object):
     def __init__(self, id=None, size=None, rotation=None, flowId=None, targetNode=None, currentNode=None):
 	self.id = id
@@ -46,7 +47,27 @@ class Calculations(object):
 	    else:
 	        return "left"
 
+    # The method below takes a packet as an argument and then returns the node
+    # that the packet should go next.
+    def findNextNode(self, nodeList, packet):
+        if packet.rotation == "right":
+	    if nodeList[(packet.currentNode+1)%len(nodeList)] == None:
+	        return nodeList[(packet.currentNode+2)%len(nodeList)].id
+	    else:
+	        return nodeList[(packet.currentNode+1)%len(nodeList)].id
+	elif packet.rotation == "left":
+	    if nodeList[(packet.currentNode-1)%len(nodeList)] == None:
+                return nodeList[(packet.currentNode-2)%len(nodeList)].id
+	    else:
+		return nodeList[(packet.currentNode-1)%len(nodeList)].id
 
+
+    transmissionDelayByRoute = lambda packet, nodeList: self.transmissionDelay(packet.size, nodeList[packet.currentNode].rightLinkDataRate) if packet.rotation == "right" else (self.transmissionDelay(packet.size, nodeList[packet.currentNode].leftLinkDataRate)) 
+    def transmissionDelayByRoute2(self, packet, nodeList):
+        if packet.rotation == "right":
+	    return self.transmissionDelay(packet.size, nodeList[packet.currentNode].rightLinkDataRate)
+        else:
+	    return self.transmissionDelay(packet.size, nodeList[packet.currentNode].leftLinkDataRate)
 
 class Network(object):
 
@@ -115,32 +136,22 @@ class Network(object):
 	        continue
 
 	# THIS PART CONTAINS SOME USEFUL FUNCTIONS THAT USED WHEN INITIALIZING FEL!!!
-	dummyFunc = lambda x: self.calculations.transmissionDelay(x.size, self.nodeList[x.currentNode].rightLinkDataRate) if x.rotation == "right" else (self.calculations.transmissionDelay(x.size, self.nodeList[x.currentNode].leftLinkDataRate)) 
-	def dummyFunc2(packet):
-	    if packet.rotation == "right":
-		if self.nodeList[(packet.currentNode+1)%len(self.nodeList)] == None:
-		    return self.nodeList[(packet.currentNode+2)%len(self.nodeList)].id
-		else:
-		    return self.nodeList[(packet.currentNode+1)%len(self.nodeList)].id
-	    elif packet.rotation == "left":
-		if self.nodeList[(packet.currentNode-1)%len(self.nodeList)] == None:
-		    return self.nodeList[(packet.currentNode-2)%len(self.nodeList)].id
-		else:
-		    return self.nodeList[(packet.currentNode-1)%len(self.nodeList)].id
-
+	
 	# Initialization of the Future Event List    
 	self.FEL = []	
 	for flow in self.packetList:
 	    if flow != None:
 		for packet in flow:
 		    if packet != None:
-		        self.FEL.append({
-				    "Event":"Departure", 
-				    "Time": self.clock + packet.id * dummyFunc(packet), 
-				    "From/To": paket.currentNode
-				    "PacketID":packet.id, 
-				    "FlowID":packet.flowId
-				    })
+		        if packet.id == 1:
+		            self.FEL.append({
+			     	        "Event":"Departure", 
+				        "Time": self.clock + self.calculations.transmissionDelayByRoute2(packet, self.nodeList), 
+				        "From/To": packet.currentNode,
+				        "PacketID":packet.id, 
+				        "FlowID":packet.flowId
+				        })
+			    continue		
 			self.nodeList[packet.currentNode].queue.append(packet) # This line adds the packet to queue of convenient node.
 		    else:
 	    	        continue
@@ -148,25 +159,50 @@ class Network(object):
 	        continue
 
     def simulate(self):
-	while(len(self.FEL != 0)):
+	while(len(self.FEL) != 0):
+	    time.sleep(2)
 	    self.FEL = sorted(self.FEL, key=lambda k: (k["Time"],k["FlowID"])) # Sorts the FEL by Time then FlowID in ascending order.
 
 	    currentEvent = self.FEL[0] 
-	   
+	    del self.FEL[0] # This line removes the current event from the FEL.
+            
+	    self.clock = currentEvent["Time"] 
+            event = currentEvent["Event"]
 	    # ARRIVAL SCENARIO
-	    if currentEvent["Event"] == "Arrival":
+	    if event  == "Arrival":
+	        print "(Flow{}) Packet{} arrived to Node{} at time {} ms.".format(currentEvent["FlowID"], currentEvent["PacketID"], currentEvent["From/To"], currentEvent["Time"])
+		print "-----------------------------------------------------"
 	        if self.nodeList[currentEvent["From/To"]].isBusy == False:
-	            self.nodeList[currentEvent["From/To"]].isBusy = True # Set isBusy flag of current node True.
-	            currentEvent.["Event"] = "Departure"
-		    currentEvent.["Time"] = currentEvent["Time"] + dummyFunc(self.packetList[currentEvent["FlowID"]][currentEvent["PacketID"]])
-		    self.FEL[0] = currentEvent
+	            self.nodeList[currentEvent["From/To"]].isBusy = True # Set isBusy flag of current the  node True.
+	            currentEvent["Event"] = "Departure"
+		    currentEvent["Time"] = currentEvent["Time"] + self.calculations.transmissionDelayByRoute2(self.packetList[currentEvent["FlowID"]][currentEvent["PacketID"]], self.nodeList)
+		    if self.packetList[currentEvent["FlowID"]][currentEvent["PacketID"]].targetNode != currentEvent["From/To"]:
+		        self.FEL.append(currentEvent)
                 else:
 	            self.nodeList[currentEvent["From/To"]].queue.append(self.packetList[currentEvent["FlowID"]][currentEvent["PacketID"]])
 
 	    
 	    # DEPARTURE SCENARIO
-	    if currentEvent["Event"] == "Departure":
-	        if len(self.nodeList[currentEvent["From/To"]].queue) > 0:
-	            self.nodeList[currentEvent["From/To"]].queue.remove(self.packetList[currentEven["FlowID"]][currentEven["PacketID"]])
-                    currentEvent["Event"] = "Arrival"
-		    currentEvent["Time"] = currentEvent["Time"] + self.propogationDelay
+	    if event  == "Departure":
+		temporaryNodeIndex = currentEvent["From/To"]
+		print "(Flow{}) Packet{} departed from Node{} at time {} ms.".format(currentEvent["FlowID"], currentEvent["PacketID"], currentEvent["From/To"], currentEvent["Time"])
+		print "-----------------------------------------------------"
+		currentEvent["Event"] = "Arrival"
+		currentEvent["Time"] = currentEvent["Time"] + self.propogationDelay
+		currentEvent["From/To"] = self.calculations.findNextNode(self.nodeList, self.packetList[currentEvent["FlowID"]][currentEvent["PacketID"]])
+		self.packetList[currentEvent["FlowID"]][currentEvent["PacketID"]].currentNode = currentEvent["From/To"]
+                self.FEL.append(currentEvent)
+	        if len(self.nodeList[temporaryNodeIndex].queue) > 0:
+	            # self.nodeList[currentEvent["From/To"]].queue.remove(self.packetList[currentEvent["FlowID"]][currentEvent["PacketID"]])
+		    nextPacketInTheQueue = self.nodeList[temporaryNodeIndex].queue[0]
+		    del self.nodeList[temporaryNodeIndex].queue[0]
+                    eventTemplate = {
+		            "Event": "Departure",
+			    "Time": self.clock + self.calculations.transmissionDelayByRoute2(nextPacketInTheQueue, self.nodeList),
+			    "From/To": nextPacketInTheQueue.currentNode,
+			    "FlowID": nextPacketInTheQueue.flowId,
+			    "PacketID": nextPacketInTheQueue.id
+		            }
+		    self.FEL.append(eventTemplate)	    
+		else:
+		    self.nodeList[temporaryNodeIndex].isBusy = False
